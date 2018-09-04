@@ -7,7 +7,13 @@ A build script inspired by [i686-elf-tools](https://github.com/lordmilko/i686-el
  * git
  * cmake
  * curl
- * python 2
+ * python2
+ * libexpat1-dev
+
+### Required Packages (MacOSX)
+
+ * Xcode Command Line Tools
+ * cmake
 
 ### Build
 ```
