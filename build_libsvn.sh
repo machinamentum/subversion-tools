@@ -19,6 +19,12 @@ case "${unameOut}" in
 esac
 echo ${machine}
 
+if type wget > /dev/null ; then
+  dl_command="wget"
+else
+  dl_command="curl"
+fi
+
 function main {
 	mkdir -p build_libsvn
 	cd build_libsvn
@@ -143,7 +149,11 @@ function downloadAndExtract {
     name=$1
     version=$2
     override=$3
-    curl_optional=$4
+
+    if [[ $dl_command == "curl" ]]
+    then
+    	curl_non_optional="-O"
+    fi
     
     pwd
     
@@ -155,9 +165,9 @@ function downloadAndExtract {
         
         if [ -z $3 ]
         then
-            curl $curl_optional -O http://ftp.gnu.org/gnu/$name/$name-$version.tar.gz
+            $dl_command $curl_non_optional http://ftp.gnu.org/gnu/$name/$name-$version.tar.gz
         else
-            curl $curl_optional -O $override $curl_optional
+            $dl_command $curl_non_optional $override $curl_optional
         fi
     else
         echoColor "        $name-$version.tar.gz already exists"
