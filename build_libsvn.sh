@@ -25,6 +25,10 @@ else
   dl_command="curl"
 fi
 
+set -ex
+
+args=$@
+
 function main {
 	mkdir -p build_libsvn
 	cd build_libsvn
@@ -39,20 +43,66 @@ function main {
 	downloadAndExtract "sqlite" $SQLITE_VERSION "https://www.sqlite.org/2018/sqlite-$SQLITE_VERSION.tar.gz"
 
 	# clone the Julia repo for utf8proc because github releases dont provide a URL to a true zip file of the source code (AFAICT)
-	git clone https://github.com/JuliaStrings/utf8proc.git utf8proc-git
+	if [[ ! -d utf8proc-git ]]
+	then
+		git clone https://github.com/JuliaStrings/utf8proc.git utf8proc-git
+	fi
 
 	mkdir -p lib_output
 	my_path=`pwd`
+	lib_path=$my_path/lib_output/lib
 
 	cmakeBuildLib utf8proc "git"
 	buildLib sqlite $SQLITE_VERSION
 	buildLib zlib $ZLIB_VERSION
 	buildLib apr $APR_VERSION
-	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output"
-	buildLib openssl $OPENSSL_VERSION "darwin64-x86_64-cc zlib"
+	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
+	buildLib openssl $OPENSSL_VERSION "zlib --openssldir=$my_path/lib_output"
 	sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output PREFIX=$my_path/lib_output"
 
 	buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output"
+
+	if [[ $args == *"single_library"* ]]
+	then
+		echo "
+		#include <subversion-1/svn_client.h>
+		#include <apr-1/apr.h>
+		#include <apr-1/apr_time.h>
+		void ________import_stub() {
+			apr_terminate();
+			svn_client_get_simple_provider(0, 0);
+			apr_month_snames[0][0];
+		}
+		" >./m_obj.c
+		gcc -fPIC ./m_obj.c -c -o ./m_obj.o -I $my_path/lib_output/include -I $my_path/lib_output/include/apr-1 -nostdlib
+		g++ -shared -fPIC -o $my_path/lib_output/lib/libsvn.so \
+				./m_obj.o \
+				-Wl,--whole-archive \
+				-Wl,-no-whole-arhive \
+				$lib_path/libsvn_client-1.a \
+				$lib_path/libsvn_delta-1.a \
+				$lib_path/libsvn_fs-1.a \
+				$lib_path/libsvn_fs_x-1.a \
+				$lib_path/libsvn_fs_fs-1.a \
+				$lib_path/libsvn_fs_util-1.a \
+				$lib_path/libsvn_subr-1.a \
+				$lib_path/libsvn_wc-1.a \
+				$lib_path/libsvn_ra-1.a \
+				$lib_path/libsvn_ra_local-1.a \
+				$lib_path/libsvn_ra_svn-1.a \
+				$lib_path/libsvn_ra_serf-1.a \
+				$lib_path/libsvn_repos-1.a \
+				$lib_path/libsvn_diff-1.a \
+				$lib_path/libaprutil-1.a \
+				$lib_path/libapr-1.a \
+				$lib_path/libserf-1.a \
+				$lib_path/libsqlite3.a \
+				$lib_path/libz.a \
+				$lib_path/libutf8proc.a \
+				$lib_path/libssl.a \
+				$lib_path/libcrypto.a
+				
+	fi
 
 	cd ..
 }
@@ -64,19 +114,24 @@ function cmakeBuildLib {
 
 	pwd
 
-	if [ -f ./$name-$version/buildconf ]
+	if [ ! -f ./build_$name/CMakeCache.txt ]
 	then
-		cd $name-$version
-		./buildconf
-		cd ..
+		if [ -f ./$name-$version/buildconf ]
+		then
+			cd $name-$version
+			./buildconf $options
+			cd ..
+		fi
+
+		mkdir -p build_$name
+		cd build_$name
+
+		my_path=`pwd`
+
+		cmake ../$name-$version -DCMAKE_INSTALL_PREFIX=$my_path/../lib_output $options
+	else
+		cd build_$name
 	fi
-
-	mkdir -p build_$name
-	cd build_$name
-
-	my_path=`pwd`
-
-	cmake ../$name-$version -DCMAKE_INSTALL_PREFIX=$my_path/../lib_output $options
 	cmake --build . --target install
 
 	cd ..
@@ -93,7 +148,7 @@ function sconsBuildLib {
 	if [ -f ./$name-$version/buildconf ]
 	then
 		cd $name-$version
-		./buildconf
+		./buildconf $options
 		cd ..
 	fi
 
@@ -102,8 +157,8 @@ function sconsBuildLib {
 
 	my_path=`pwd`
 
-	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ $options
-	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ install
+	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ $options CFLAGS="-fPIC" 
+	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ install  CFLAGS="-fPIC" 
 
 	cd ..
 	my_path=`pwd`
@@ -113,29 +168,37 @@ function buildLib {
 	name=$1
 	version=$2
 	options=$3
+	buildconf_options=$4
 
-	if [ -f ./$name-$version/buildconf ]
+	if [[ ! -f ./build_$name/Makefile ]]
 	then
-		cd $name-$version
-		./buildconf
-		cd ..
-	fi
-
-	mkdir -p build_$name
-	cd build_$name
-
-	my_path=`pwd`
-
-	if [ -f ../$name-$version/Configure ]
-	then
-		cp -r ../$name-$version/. ./.
-		if [ $machine == "Mac" ]
+		if [ -f ./$name-$version/buildconf ]
 		then
-			options = darwin64-x86_64-cc $options
+			cd $name-$version
+			./buildconf $buildconf_options
+			cd ..
 		fi
-		./Configure --prefix=$my_path/../lib_output $options
+
+		mkdir -p build_$name
+		cd build_$name
+
+		my_path=`pwd`
+
+		if [ -f ../$name-$version/Configure ]
+		then
+			cp -r ../$name-$version/. ./.
+			if [ $machine == "Mac" ]
+			then
+				options="darwin64-x86_64-cc $options"
+			else
+				options="linux-x86_64 $options"
+			fi
+			CFLAGS="-fPIC" ./Configure --prefix=$my_path/../lib_output shared $options
+		else
+			CFLAGS="-fPIC" ../$name-$version/configure --prefix=$my_path/../lib_output $options
+		fi
 	else
-		../$name-$version/configure --prefix=$my_path/../lib_output $options
+		cd build_$name
 	fi
 
 	make
@@ -159,7 +222,7 @@ function downloadAndExtract {
     
     echoColor "    Processing $name"
     
-    if [ ! -f $name-$version.tar.gz ]
+    if [[ ! -f $name-$version.tar.gz && ! -f $name-$version.tar.bz2 ]]
     then
         echoColor "        Downloading $name-$version.tar.gz"
         
@@ -176,10 +239,11 @@ function downloadAndExtract {
     if [ ! -d $name-$version ]
     then
         echoColor "        Extracting $name-$version.tar.gz"
-        tar -xf $name-$version.tar.gz
 
-        if [ $? ]
+        if [[ -f $name-$version.tar.gz ]]
         then
+        	tar -xf $name-$version.tar.gz
+        else
         	tar -xf $name-$version.tar.bz2
         fi
     else

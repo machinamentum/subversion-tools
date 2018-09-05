@@ -17,6 +17,6 @@ A build script inspired by [i686-elf-tools](https://github.com/lordmilko/i686-el
 
 ### Build
 ```
-./build_libsvn.sh
+./build_libsvn.sh [single_library]
 ```
 Output will be in build_libsvn/lib_output
