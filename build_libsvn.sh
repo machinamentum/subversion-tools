@@ -43,15 +43,23 @@ function main {
 	downloadAndExtract "sqlite" $SQLITE_VERSION "https://www.sqlite.org/2018/sqlite-$SQLITE_VERSION.tar.gz"
 
 	# clone the Julia repo for utf8proc because github releases dont provide a URL to a true zip file of the source code (AFAICT)
-	if [[ ! -d utf8proc-git ]]
+	gitClone utf8proc https://github.com/JuliaStrings/utf8proc.git
+	gitClone expat https://github.com/libexpat/libexpat.git
+
+	# fixup expat because it doesnt have it's configure tree at its root
+	if [ ! -d expat-git-temp ]
 	then
-		git clone https://github.com/JuliaStrings/utf8proc.git utf8proc-git
+		mkdir -p expat-git-temp
+		mv ./expat-git/* ./expat-git-temp/.
+		cp -r ./expat-git-temp/expat/* expat-git/.
 	fi
 
 	mkdir -p lib_output
 	my_path=`pwd`
 	lib_path=$my_path/lib_output/lib
+	include_path=$my_path/lib_output/include
 
+	buildLib expat "git" "--with-docbook"
 	cmakeBuildLib utf8proc "git"
 	buildLib sqlite $SQLITE_VERSION
 	buildLib zlib $ZLIB_VERSION
@@ -75,10 +83,10 @@ function main {
 		}
 		" >./m_obj.c
 		gcc -fPIC ./m_obj.c -c -o ./m_obj.o -I $my_path/lib_output/include -I $my_path/lib_output/include/apr-1 -nostdlib
-		g++ -shared -fPIC -o $my_path/lib_output/lib/libsvn.so \
+		gcc -m64 -shared -fPIC -o "$lib_path/libsvn.so" \
 				./m_obj.o \
+				-Wl,--export-dynamic \
 				-Wl,--whole-archive \
-				-Wl,-no-whole-arhive \
 				$lib_path/libsvn_client-1.a \
 				$lib_path/libsvn_delta-1.a \
 				$lib_path/libsvn_fs-1.a \
@@ -100,11 +108,24 @@ function main {
 				$lib_path/libz.a \
 				$lib_path/libutf8proc.a \
 				$lib_path/libssl.a \
-				$lib_path/libcrypto.a
+				$lib_path/libcrypto.a \
+				$lib_path/libexpat.a \
+				-Wl,--no-whole-archive \
+				-Wl,--no-export-dynamic -lcrypt
 				
 	fi
 
 	cd ..
+}
+
+function gitClone {
+	name=$1
+	url=$2
+
+	if [[ ! -d $name-git ]]
+	then
+		git clone $url $name-git
+	fi
 }
 
 function cmakeBuildLib {
@@ -116,13 +137,6 @@ function cmakeBuildLib {
 
 	if [ ! -f ./build_$name/CMakeCache.txt ]
 	then
-		if [ -f ./$name-$version/buildconf ]
-		then
-			cd $name-$version
-			./buildconf $options
-			cd ..
-		fi
-
 		mkdir -p build_$name
 		cd build_$name
 
@@ -179,6 +193,13 @@ function buildLib {
 			cd ..
 		fi
 
+		if [ -f ./$name-$version/buildconf.sh ]
+		then
+			cd $name-$version
+			./buildconf.sh $options
+			cd ..
+		fi
+
 		mkdir -p build_$name
 		cd build_$name
 
@@ -195,7 +216,7 @@ function buildLib {
 			fi
 			CFLAGS="-fPIC" ./Configure --prefix=$my_path/../lib_output shared $options
 		else
-			CFLAGS="-fPIC" ../$name-$version/configure --prefix=$my_path/../lib_output $options
+			CFLAGS="-fPIC -I $include_path" ../$name-$version/configure --prefix=$my_path/../lib_output $options
 		fi
 	else
 		cd build_$name

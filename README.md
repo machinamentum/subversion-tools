@@ -8,7 +8,7 @@ A build script inspired by [i686-elf-tools](https://github.com/lordmilko/i686-el
  * cmake
  * curl
  * python2
- * libexpat1-dev
+ * docbook2x
 
 ### Required Packages (MacOSX)
 
