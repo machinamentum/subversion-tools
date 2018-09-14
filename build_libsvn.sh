@@ -9,6 +9,10 @@ OPENSSL_VERSION=1.1.0i
 SCONS_VERSION=2.3.0
 SQLITE_VERSION=autoconf-3240000
 
+FORCE_GLIBC=2.5
+
+GLOBAL_CFLAGS="-fPIC"
+
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     machine=Linux;;
@@ -58,17 +62,18 @@ function main {
 	my_path=`pwd`
 	lib_path=$my_path/lib_output/lib
 	include_path=$my_path/lib_output/include
+	GLOBAL_CFLAGS="$GLOBAL_CFLAGS -include $my_path/../force_link_glibc_$FORCE_GLIBC.h"
 
-	buildLib expat "git" "--with-docbook"
-	cmakeBuildLib utf8proc "git"
-	buildLib sqlite $SQLITE_VERSION
-	buildLib zlib $ZLIB_VERSION
-	buildLib apr $APR_VERSION
-	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
-	buildLib openssl $OPENSSL_VERSION "zlib --openssldir=$my_path/lib_output"
-	sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output PREFIX=$my_path/lib_output"
+	# buildLib expat "git" "--with-docbook"
+	# cmakeBuildLib utf8proc "git"
+	# buildLib sqlite $SQLITE_VERSION
+	# buildLib zlib $ZLIB_VERSION
+	# buildLib apr $APR_VERSION
+	# buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
+	# buildLib openssl $OPENSSL_VERSION "zlib --openssldir=$my_path/lib_output"
+	# sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output PREFIX=$my_path/lib_output"
 
-	buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output"
+	# buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output"
 
 	if [[ $args == *"single_library"* ]]
 	then
@@ -111,7 +116,7 @@ function main {
 				$lib_path/libcrypto.a \
 				$lib_path/libexpat.a \
 				-Wl,--no-whole-archive \
-				-Wl,--no-export-dynamic -lcrypt
+				-Wl,--no-export-dynamic -lcrypt -lpthread -lm -ldl
 				
 	fi
 
@@ -142,7 +147,7 @@ function cmakeBuildLib {
 
 		my_path=`pwd`
 
-		cmake ../$name-$version -DCMAKE_INSTALL_PREFIX=$my_path/../lib_output $options
+		cmake ../$name-$version -DCMAKE_C_FLAGS="$GLOBAL_CFLAGS" -DCMAKE_INSTALL_PREFIX=$my_path/../lib_output $options
 	else
 		cd build_$name
 	fi
@@ -171,8 +176,8 @@ function sconsBuildLib {
 
 	my_path=`pwd`
 
-	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ $options CFLAGS="-fPIC" 
-	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ install  CFLAGS="-fPIC" 
+	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ $options CFLAGS="$GLOBAL_CFLAGS" 
+	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ install  CFLAGS="$GLOBAL_CFLAGS" 
 
 	cd ..
 	my_path=`pwd`
@@ -214,9 +219,9 @@ function buildLib {
 			else
 				options="linux-x86_64 $options"
 			fi
-			CFLAGS="-fPIC" ./Configure --prefix=$my_path/../lib_output shared $options
+			CFLAGS="$GLOBAL_CFLAGS" ./Configure --prefix=$my_path/../lib_output shared $options
 		else
-			CFLAGS="-fPIC -I $include_path" ../$name-$version/configure --prefix=$my_path/../lib_output $options
+			CFLAGS="$GLOBAL_CFLAGS -I $include_path" ../$name-$version/configure --prefix=$my_path/../lib_output $options
 		fi
 	else
 		cd build_$name
