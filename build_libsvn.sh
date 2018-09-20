@@ -64,16 +64,16 @@ function main {
 	include_path=$my_path/lib_output/include
 	GLOBAL_CFLAGS="$GLOBAL_CFLAGS -include $my_path/../force_link_glibc_$FORCE_GLIBC.h"
 
-	# buildLib expat "git" "--with-docbook"
-	# cmakeBuildLib utf8proc "git"
-	# buildLib sqlite $SQLITE_VERSION
-	# buildLib zlib $ZLIB_VERSION
-	# buildLib apr $APR_VERSION
-	# buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
-	# buildLib openssl $OPENSSL_VERSION "zlib --openssldir=$my_path/lib_output"
-	# sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output PREFIX=$my_path/lib_output"
+	buildLib expat "git" "--with-docbook"
+	cmakeBuildLib utf8proc "git"
+	buildLib sqlite $SQLITE_VERSION
+	buildLib zlib $ZLIB_VERSION
+	buildLib apr $APR_VERSION
+	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
+	buildLib openssl $OPENSSL_VERSION "zlib --prefix=$my_path/lib_output --openssldir=ssl --with-zlib-lib=$my_path/lib_output/lib/ --with-zlib-include=$my_path/lib_output/include/"
+	sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output ZLIB=$my_path/lib_output PREFIX=$my_path/lib_output"
 
-	# buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output"
+	buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
 
 	if [[ $args == *"single_library"* ]]
 	then
@@ -110,13 +110,14 @@ function main {
 				$lib_path/libapr-1.a \
 				$lib_path/libserf-1.a \
 				$lib_path/libsqlite3.a \
+				-Wl,--no-export-dynamic \
+				$lib_path/libssl.a \
 				$lib_path/libz.a \
 				$lib_path/libutf8proc.a \
-				$lib_path/libssl.a \
 				$lib_path/libcrypto.a \
 				$lib_path/libexpat.a \
 				-Wl,--no-whole-archive \
-				-Wl,--no-export-dynamic -lcrypt -lpthread -lm -ldl
+				-lcrypt -lpthread -lm -ldl
 				
 	fi
 
@@ -177,6 +178,7 @@ function sconsBuildLib {
 	my_path=`pwd`
 
 	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ $options CFLAGS="$GLOBAL_CFLAGS" 
+	# python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ check  CFLAGS="$GLOBAL_CFLAGS" 
 	python $my_path/../../scons-local-2.3.0/scons.py -Y ../$name-$version/ install  CFLAGS="$GLOBAL_CFLAGS" 
 
 	cd ..
@@ -188,9 +190,11 @@ function buildLib {
 	version=$2
 	options=$3
 	buildconf_options=$4
+	extra_cflags=$5
 
 	if [[ ! -f ./build_$name/Makefile ]]
 	then
+		mkdir -p ./$name-$version/m4
 		if [ -f ./$name-$version/buildconf ]
 		then
 			cd $name-$version
@@ -221,7 +225,7 @@ function buildLib {
 			fi
 			CFLAGS="$GLOBAL_CFLAGS" ./Configure --prefix=$my_path/../lib_output shared $options
 		else
-			CFLAGS="$GLOBAL_CFLAGS -I $include_path" ../$name-$version/configure --prefix=$my_path/../lib_output $options
+			CFLAGS="$GLOBAL_CFLAGS -I $include_path $extra_cflags" ../$name-$version/configure --prefix=$my_path/../lib_output $options
 		fi
 	else
 		cd build_$name
