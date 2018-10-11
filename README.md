@@ -16,6 +16,10 @@ force_link_glibc headers are from [wheybags/glibc_version_header](https://github
 
  * Xcode Command Line Tools
  * cmake
+ * autoreconf
+ * libtool
+
+> NOTE: Homebrew's version of libtool is required. It might be installed as glibtool to not conflict with Apple's. This is fine and will still work.
 
 ### Build
 ```
