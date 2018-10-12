@@ -62,18 +62,21 @@ function main {
 	my_path=`pwd`
 	lib_path=$my_path/lib_output/lib
 	include_path=$my_path/lib_output/include
-	GLOBAL_CFLAGS="$GLOBAL_CFLAGS -include $my_path/../force_link_glibc_$FORCE_GLIBC.h"
+	if [ $machine != "Mac" ]
+	then
+		GLOBAL_CFLAGS="$GLOBAL_CFLAGS -include $my_path/../force_link_glibc_$FORCE_GLIBC.h"
+	fi
 
-	buildLib expat "git" "--with-docbook"
-	cmakeBuildLib utf8proc "git"
-	buildLib sqlite $SQLITE_VERSION
-	buildLib zlib $ZLIB_VERSION
-	buildLib apr $APR_VERSION
-	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
-	buildLib openssl $OPENSSL_VERSION "zlib --prefix=$my_path/lib_output --openssldir=ssl --with-zlib-lib=$my_path/lib_output/lib/ --with-zlib-include=$my_path/lib_output/include/"
-	sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output ZLIB=$my_path/lib_output PREFIX=$my_path/lib_output"
+	buildconfLib expat "git" "--with-docbook"
+	# cmakeBuildLib utf8proc "git"
+	# buildLib sqlite $SQLITE_VERSION
+	# buildLib zlib $ZLIB_VERSION
+	# buildLib apr $APR_VERSION
+	# buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
+	# buildOpenSLLConfigureLib openssl $OPENSSL_VERSION "zlib --prefix=$my_path/lib_output --openssldir=ssl --with-zlib-lib=$my_path/lib_output/lib/ --with-zlib-include=$my_path/lib_output/include/"
+	# sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output ZLIB=$my_path/lib_output PREFIX=$my_path/lib_output"
 
-	buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
+	# buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
 
 	if [[ $args == *"single_library"* ]]
 	then
@@ -88,7 +91,41 @@ function main {
 		}
 		" >./m_obj.c
 		gcc -fPIC ./m_obj.c -c -o ./m_obj.o -I $my_path/lib_output/include -I $my_path/lib_output/include/apr-1 -nostdlib
-		gcc -m64 -shared -fPIC -o "$lib_path/libsvn.so" \
+
+		if [ $machine == "Mac" ]
+		then
+			#there's no way to specify --no-export-dynamic on mac it seems
+			gcc -m64 -shared -fPIC -o "$lib_path/libsvn.so" \
+				./m_obj.o \
+				-Wl,-export_dynamic \
+				-Wl,-all_load \
+				$lib_path/libsvn_client-1.a \
+				$lib_path/libsvn_delta-1.a \
+				$lib_path/libsvn_fs-1.a \
+				$lib_path/libsvn_fs_x-1.a \
+				$lib_path/libsvn_fs_fs-1.a \
+				$lib_path/libsvn_fs_util-1.a \
+				$lib_path/libsvn_subr-1.a \
+				$lib_path/libsvn_wc-1.a \
+				$lib_path/libsvn_ra-1.a \
+				$lib_path/libsvn_ra_local-1.a \
+				$lib_path/libsvn_ra_svn-1.a \
+				$lib_path/libsvn_ra_serf-1.a \
+				$lib_path/libsvn_repos-1.a \
+				$lib_path/libsvn_diff-1.a \
+				$lib_path/libaprutil-1.a \
+				$lib_path/libapr-1.a \
+				$lib_path/libserf-1.a \
+				$lib_path/libsqlite3.a \
+				$lib_path/libssl.a \
+				$lib_path/libz.a \
+				$lib_path/libutf8proc.a \
+				$lib_path/libcrypto.a \
+				$lib_path/libexpat.a \
+				-Wl,-noall_load \
+				-lpthread -lm -ldl -liconv -lsasl2 -framework CoreFoundation -framework Security
+		else
+			gcc -m64 -shared -fPIC -o "$lib_path/libsvn.so" \
 				./m_obj.o \
 				-Wl,--export-dynamic \
 				-Wl,--whole-archive \
@@ -118,6 +155,8 @@ function main {
 				$lib_path/libexpat.a \
 				-Wl,--no-whole-archive \
 				-lcrypt -lpthread -lm -ldl
+		fi
+		
 				
 	fi
 
@@ -195,6 +234,69 @@ function buildLib {
 	if [[ ! -f ./build_$name/Makefile ]]
 	then
 		mkdir -p ./$name-$version/m4
+
+		mkdir -p build_$name
+		cd build_$name
+
+		my_path=`pwd`
+
+		CFLAGS="$GLOBAL_CFLAGS -I $include_path $extra_cflags" ../$name-$version/configure --prefix=$my_path/../lib_output $options
+	else
+		cd build_$name
+	fi
+
+	make
+	make install
+
+	cd ..
+	my_path=`pwd`
+}
+
+function buildOpenSLLConfigureLib {
+	name=$1
+	version=$2
+	options=$3
+	buildconf_options=$4
+	extra_cflags=$5
+
+	if [[ ! -f ./build_$name/Makefile ]]
+	then
+		mkdir -p ./$name-$version/m4
+
+		mkdir -p build_$name
+		cd build_$name
+
+		my_path=`pwd`
+
+		cp -r ../$name-$version/. ./.
+		if [ $machine == "Mac" ]
+		then
+			options="darwin64-x86_64-cc $options"
+		else
+			options="linux-x86_64 $options"
+		fi
+		CFLAGS="$GLOBAL_CFLAGS" ./Configure --prefix=$my_path/../lib_output shared $options
+	else
+		cd build_$name
+	fi
+
+	make
+	make install
+
+	cd ..
+	my_path=`pwd`
+}
+
+function buildconfLib {
+	name=$1
+	version=$2
+	options=$3
+	buildconf_options=$4
+	extra_cflags=$5
+
+	if [[ ! -f ./build_$name/Makefile ]]
+	then
+		mkdir -p ./$name-$version/m4
 		if [ -f ./$name-$version/buildconf ]
 		then
 			cd $name-$version
@@ -214,19 +316,7 @@ function buildLib {
 
 		my_path=`pwd`
 
-		if [ -f ../$name-$version/Configure ]
-		then
-			cp -r ../$name-$version/. ./.
-			if [ $machine == "Mac" ]
-			then
-				options="darwin64-x86_64-cc $options"
-			else
-				options="linux-x86_64 $options"
-			fi
-			CFLAGS="$GLOBAL_CFLAGS" ./Configure --prefix=$my_path/../lib_output shared $options
-		else
-			CFLAGS="$GLOBAL_CFLAGS -I $include_path $extra_cflags" ../$name-$version/configure --prefix=$my_path/../lib_output $options
-		fi
+		CFLAGS="$GLOBAL_CFLAGS -I $include_path $extra_cflags" ../$name-$version/configure --prefix=$my_path/../lib_output $options
 	else
 		cd build_$name
 	fi
