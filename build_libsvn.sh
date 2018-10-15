@@ -68,15 +68,15 @@ function main {
 	fi
 
 	buildconfLib expat "git" "--with-docbook"
-	# cmakeBuildLib utf8proc "git"
-	# buildLib sqlite $SQLITE_VERSION
-	# buildLib zlib $ZLIB_VERSION
-	# buildLib apr $APR_VERSION
-	# buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
-	# buildOpenSLLConfigureLib openssl $OPENSSL_VERSION "zlib --prefix=$my_path/lib_output --openssldir=ssl --with-zlib-lib=$my_path/lib_output/lib/ --with-zlib-include=$my_path/lib_output/include/"
-	# sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output ZLIB=$my_path/lib_output PREFIX=$my_path/lib_output"
+	cmakeBuildLib utf8proc "git"
+	buildLib sqlite $SQLITE_VERSION
+	buildLib zlib $ZLIB_VERSION
+	buildLib apr $APR_VERSION
+	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
+	buildOpenSLLConfigureLib openssl $OPENSSL_VERSION "zlib --prefix=$my_path/lib_output --openssldir=ssl --with-zlib-lib=$my_path/lib_output/lib/ --with-zlib-include=$my_path/lib_output/include/"
+	sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output ZLIB=$my_path/lib_output PREFIX=$my_path/lib_output"
 
-	# buildLib subversion $SUBVERSION_VERSION "--with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
+	buildLib subversion $SUBVERSION_VERSION "--with-gpg_agent --with-sasl --with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
 
 	if [[ $args == *"single_library"* ]]
 	then
@@ -95,7 +95,7 @@ function main {
 		if [ $machine == "Mac" ]
 		then
 			#there's no way to specify --no-export-dynamic on mac it seems
-			gcc -m64 -shared -fPIC -o "$lib_path/libsvn.so" \
+			gcc -m64 -shared -fPIC -o "$lib_path/libsvn.dylib" \
 				./m_obj.o \
 				-Wl,-export_dynamic \
 				-Wl,-all_load \
@@ -124,6 +124,8 @@ function main {
 				$lib_path/libexpat.a \
 				-Wl,-noall_load \
 				-lpthread -lm -ldl -liconv -lsasl2 -framework CoreFoundation -framework Security
+
+			install_name_tool -id "@rpath/libsvn.dylib" "$lib_path/libsvn.dylib"
 		else
 			gcc -m64 -shared -fPIC -o "$lib_path/libsvn.so" \
 				./m_obj.o \
