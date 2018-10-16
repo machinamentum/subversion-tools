@@ -5,7 +5,7 @@ APR_VERSION=1.6.5
 APR_UTIL_VERSION=1.6.1
 ZLIB_VERSION=1.2.11
 SERF_VERSION=1.3.9
-OPENSSL_VERSION=1.1.0i
+OPENSSL_VERSION=1.1.0
 SCONS_VERSION=2.3.0
 SQLITE_VERSION=autoconf-3240000
 
@@ -195,7 +195,7 @@ function main {
 				$lib_path/libcrypto.a \
 				$lib_path/libexpat.a \
 				-Wl,--no-whole-archive \
-				-lpthread -lm -ldl
+				-lcrypt -lpthread -lm -ldl
 		fi
 		
 				

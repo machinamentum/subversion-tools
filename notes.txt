@@ -1,0 +1,8 @@
+
+OpenSSL version
+For some reason, I can't figure out how to make the Linux runtime linker find a
+local copy of libcrypto.so.1.1 to satisfy libssl.so.1.1's requirements. One can
+get around this by specifying LD_PRELOAD or whatever, but this is a major
+let down to those wanting to ship complete software. For now, we are reverting
+to OpenSSL 1.1.0 instead of 1.1.0i in order to have greater compatibility
+with whatever version of libcrypto.so the runtime linker happens to find, sigh.
