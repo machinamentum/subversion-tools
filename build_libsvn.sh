@@ -33,6 +33,14 @@ set -ex
 
 args=$@
 
+function checkArg {
+	name=$1
+	if [[ $args == *"$name"* ]]
+	then
+		to_build="$to_build $name"
+	fi
+}
+
 function main {
 	mkdir -p build_libsvn
 	cd build_libsvn
@@ -67,16 +75,49 @@ function main {
 		GLOBAL_CFLAGS="$GLOBAL_CFLAGS -include $my_path/../force_link_glibc_$FORCE_GLIBC.h"
 	fi
 
+	if [[ $args == *"clean"* ]]
+	then
+		rm -rf lib_output
+		rm -rf build_expat
+		rm -rf build_utf8proc
+		rm -rf build_sqlite
+		rm -rf build_zlib
+		rm -rf build_openssl
+		rm -rf build_serf
+		rm -rf build_subversion
+	fi
+
+	BUILD_ALL="expat utf8proc sqlite zlib openssl apr apr-util serf subversion"
+
+	to_build=""
+
+	checkArg expat
+	checkArg utf8proc
+	checkArg sqlite
+	checkArg zlib
+	checkArg openssl
+	checkArg apr
+	checkArg apr-util
+	checkArg serf
+	checkArg subversion
+
+	if [ -z $to_build ]
+	then
+		# to_build="$BUILD_ALL"
+
+		asdfasdfa=""
+	fi
+
 	buildconfLib expat "git" "--with-docbook"
 	cmakeBuildLib utf8proc "git"
 	buildLib sqlite $SQLITE_VERSION
 	buildLib zlib $ZLIB_VERSION
-	buildLib apr $APR_VERSION
-	buildLib apr-util $APR_UTIL_VERSION "--with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
 	buildOpenSLLConfigureLib openssl $OPENSSL_VERSION "zlib --prefix=$my_path/lib_output --openssldir=ssl --with-zlib-lib=$my_path/lib_output/lib/ --with-zlib-include=$my_path/lib_output/include/"
+	buildLib apr $APR_VERSION
+	buildLib apr-util $APR_UTIL_VERSION "--with-crypto --with-apr=$my_path/lib_output" "--with-apr=$my_path/apr-$APR_VERSION"
 	sconsBuildLib serf $SERF_VERSION "APR=$my_path/lib_output APU=$my_path/lib_output OPENSSL=$my_path/lib_output ZLIB=$my_path/lib_output PREFIX=$my_path/lib_output"
 
-	buildLib subversion $SUBVERSION_VERSION "--with-gpg_agent --with-sasl --with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
+	buildLib subversion $SUBVERSION_VERSION "--with-gpg_agent --with-lz4=internal --with-sqlite=$my_path/lib_output --with-serf=$my_path/lib_output --with-apr=$my_path/lib_output --with-apr-util=$my_path/lib_output" "" "-I $my_path/lib_output/include/serf-1/"
 
 	if [[ $args == *"single_library"* ]]
 	then
@@ -156,7 +197,7 @@ function main {
 				$lib_path/libcrypto.a \
 				$lib_path/libexpat.a \
 				-Wl,--no-whole-archive \
-				-lcrypt -lpthread -lm -ldl
+				-lpthread -lm -ldl
 		fi
 		
 				
@@ -177,6 +218,12 @@ function gitClone {
 
 function cmakeBuildLib {
 	name=$1
+
+	if [[ $to_build != *"$name"* ]]
+	then
+		return
+	fi
+
 	version=$2
 	options=$3
 
@@ -201,6 +248,12 @@ function cmakeBuildLib {
 
 function sconsBuildLib {
 	name=$1
+
+	if [[ $to_build != *"$name"* ]]
+	then
+		return
+	fi
+
 	version=$2
 	options=$3
 
@@ -228,6 +281,12 @@ function sconsBuildLib {
 
 function buildLib {
 	name=$1
+
+	if [[ $to_build != *"$name"* ]]
+	then
+		return
+	fi
+
 	version=$2
 	options=$3
 	buildconf_options=$4
@@ -256,6 +315,12 @@ function buildLib {
 
 function buildOpenSLLConfigureLib {
 	name=$1
+
+	if [[ $to_build != *"$name"* ]]
+	then
+		return
+	fi
+
 	version=$2
 	options=$3
 	buildconf_options=$4
@@ -291,6 +356,12 @@ function buildOpenSLLConfigureLib {
 
 function buildconfLib {
 	name=$1
+
+	if [[ $to_build != *"$name"* ]]
+	then
+		return
+	fi
+
 	version=$2
 	options=$3
 	buildconf_options=$4
