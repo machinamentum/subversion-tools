@@ -103,9 +103,7 @@ function main {
 
 	if [ -z $to_build ]
 	then
-		# to_build="$BUILD_ALL"
-
-		asdfasdfa=""
+		to_build="$BUILD_ALL"
 	fi
 
 	buildconfLib expat "git" "--with-docbook"
