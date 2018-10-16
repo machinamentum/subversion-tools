@@ -23,7 +23,12 @@ force_link_glibc headers are from [wheybags/glibc_version_header](https://github
 > NOTE: Homebrew's version of libtool is required. It might be installed as glibtool to not conflict with Apple's. This is fine and will still work.
 
 ### Build
+Options:
+ * Any of _expat utf8proc sqlite zlib openssl apr apr-util serf subversion_ - builds only the specified packages, does not handle depency management between them.
+ * clean - removes build directories and the output directory to enable rebuilding/reconfiguring packages from source.
+ * single_library - creates a unified library named "libsvn.so" (or "libsvn.dylib" on macOS) containing the libraries built by all packages.
+
 ```
-./build_libsvn.sh [single_library]
+./build_libsvn.sh [options]
 ```
 Output will be in build_libsvn/lib_output
